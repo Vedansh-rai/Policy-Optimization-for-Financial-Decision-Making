@@ -1,0 +1,260 @@
+# ============================================================================
+# STEP 1: SETUP AND EXPLORATORY DATA ANALYSIS (EDA)
+# Run this file first in Google Colab
+# ============================================================================
+
+# ============================================================================
+# 1.1: Install Required Packages
+# ============================================================================
+# Note: Install packages manually if needed:
+# pip install pandas numpy scikit-learn matplotlib seaborn torch d3rlpy imbalanced-learn
+print("Checking required packages...")
+
+# ============================================================================
+# 1.2: Import Libraries
+# ============================================================================
+from pathlib import Path
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+import warnings
+warnings.filterwarnings('ignore')
+
+# Set random seeds
+np.random.seed(42)
+
+# Set plotting style
+plt.style.use('seaborn-v0_8-darkgrid')
+sns.set_palette("husl")
+
+print("✓ Libraries imported!\n")
+
+# ============================================================================
+# 1.3: Load Dataset (Local Mode)
+# ============================================================================
+# Dataset file should be in the same directory
+DATA_PATH = Path(__file__).resolve().parent / "accepted_2007_to_2018Q4 2.csv"
+print(f"Dataset ready to load at: {DATA_PATH}\n")
+
+# ============================================================================
+# 1.4: Load Data
+# ============================================================================
+print("Loading dataset...")
+df = pd.read_csv(DATA_PATH, low_memory=False)
+
+print(f"Dataset shape: {df.shape}")
+print(f"Total rows: {df.shape[0]:,}")
+print(f"Total columns: {df.shape[1]}")
+print("\n✓ Data loaded!\n")
+
+# ============================================================================
+# 1.5: Initial Data Inspection
+# ============================================================================
+print("="*70)
+print("INITIAL DATA INSPECTION")
+print("="*70)
+
+print("\nFirst 5 rows:")
+print(df.head())
+
+print("\nData types summary:")
+print(df.dtypes.value_counts())
+
+print("\nBasic info:")
+print(df.info())
+
+# ============================================================================
+# 1.6: Analyze Target Variable (loan_status)
+# ============================================================================
+print("\n" + "="*70)
+print("TARGET VARIABLE ANALYSIS")
+print("="*70)
+
+print("\nLoan Status Distribution:")
+print(df['loan_status'].value_counts())
+print(f"\nTotal unique statuses: {df['loan_status'].nunique()}")
+
+# Visualize loan status
+plt.figure(figsize=(12, 6))
+df['loan_status'].value_counts().head(10).plot(kind='barh', color='steelblue')
+plt.title('Top 10 Loan Status Distribution', fontsize=14, fontweight='bold')
+plt.xlabel('Count', fontsize=12)
+plt.ylabel('Loan Status', fontsize=12)
+plt.tight_layout()
+plt.show()
+
+# ============================================================================
+# 1.7: Analyze Missing Values
+# ============================================================================
+print("\n" + "="*70)
+print("KEY NUMERICAL FEATURES ANALYSIS")
+print("="*70)
+
+# Method 1: Simplest fix
+df['int_rate'] = df['int_rate'].astype(str).str.rstrip('%').astype('float')
+
+# Or use Method 2 (more robust):
+# df['int_rate'] = pd.to_numeric(df['int_rate'].astype(str).str.replace('%', ''), errors='coerce')
+
+# Key numerical columns
+key_numerical = ['loan_amnt', 'funded_amnt', 'int_rate', 'installment', 
+                 'annual_inc', 'dti', 'open_acc', 'total_acc', 'revol_bal']
+
+print("\nDescriptive Statistics:")
+print(df[key_numerical].describe())
+
+# Visualize distributions
+fig, axes = plt.subplots(3, 3, figsize=(16, 12))
+axes = axes.ravel()
+
+for idx, col in enumerate(key_numerical):
+    if col in df.columns:
+        # Remove extreme outliers for visualization
+        data = df[col].dropna()
+        if col == 'annual_inc':
+            data = data[data < 500000]
+        
+        axes[idx].hist(data, bins=50, color='skyblue', edgecolor='black', alpha=0.7)
+        axes[idx].set_title(f'{col} Distribution', fontsize=11, fontweight='bold')
+        axes[idx].set_xlabel(col, fontsize=10)
+        axes[idx].set_ylabel('Frequency', fontsize=10)
+        axes[idx].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# ============================================================================
+# 1.8: Analyze Key Numerical Features
+# ============================================================================
+print("\n" + "="*70)
+print("KEY NUMERICAL FEATURES ANALYSIS")
+print("="*70)
+
+# Convert interest rate to numeric
+df['int_rate'] = df['int_rate'].str.rstrip('%').astype('float')
+
+# Key numerical columns
+key_numerical = ['loan_amnt', 'funded_amnt', 'int_rate', 'installment', 
+                 'annual_inc', 'dti', 'open_acc', 'total_acc', 'revol_bal']
+
+print("\nDescriptive Statistics:")
+print(df[key_numerical].describe())
+
+# Visualize distributions
+fig, axes = plt.subplots(3, 3, figsize=(16, 12))
+axes = axes.ravel()
+
+for idx, col in enumerate(key_numerical):
+    if col in df.columns:
+        # Remove extreme outliers for visualization
+        data = df[col].dropna()
+        if col == 'annual_inc':
+            data = data[data < 500000]
+        
+        axes[idx].hist(data, bins=50, color='skyblue', edgecolor='black', alpha=0.7)
+        axes[idx].set_title(f'{col} Distribution', fontsize=11, fontweight='bold')
+        axes[idx].set_xlabel(col, fontsize=10)
+        axes[idx].set_ylabel('Frequency', fontsize=10)
+        axes[idx].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# ============================================================================
+# 1.9: Analyze Key Categorical Features
+# ============================================================================
+print("\n" + "="*70)
+print("KEY CATEGORICAL FEATURES ANALYSIS")
+print("="*70)
+
+# Key categorical columns
+key_categorical = ['term', 'grade', 'emp_length', 'home_ownership', 
+                   'verification_status', 'purpose']
+
+fig, axes = plt.subplots(2, 3, figsize=(16, 10))
+axes = axes.ravel()
+
+for idx, col in enumerate(key_categorical):
+    if col in df.columns:
+        top_values = df[col].value_counts().head(10)
+        axes[idx].bar(range(len(top_values)), top_values.values, color='lightcoral', alpha=0.7)
+        axes[idx].set_xticks(range(len(top_values)))
+        axes[idx].set_xticklabels(top_values.index, rotation=45, ha='right', fontsize=9)
+        axes[idx].set_title(f'{col} Distribution', fontsize=11, fontweight='bold')
+        axes[idx].set_ylabel('Count', fontsize=10)
+        axes[idx].grid(True, alpha=0.3, axis='y')
+
+plt.tight_layout()
+plt.show()
+
+# ============================================================================
+# 1.10: Correlation Analysis
+# ============================================================================
+print("\n" + "="*70)
+print("CORRELATION ANALYSIS")
+print("="*70)
+
+# Select numerical columns for correlation
+corr_cols = ['loan_amnt', 'int_rate', 'installment', 'annual_inc', 'dti', 
+             'open_acc', 'pub_rec', 'revol_bal', 'revol_util', 'total_acc']
+corr_cols = [col for col in corr_cols if col in df.columns]
+
+correlation_matrix = df[corr_cols].corr()
+
+plt.figure(figsize=(12, 10))
+sns.heatmap(correlation_matrix, annot=True, fmt='.2f', cmap='coolwarm', 
+            center=0, square=True, linewidths=1, cbar_kws={"shrink": 0.8})
+plt.title('Correlation Matrix of Numerical Features', fontsize=14, fontweight='bold')
+plt.tight_layout()
+plt.show()
+
+print("\nHigh correlations (>0.7 or <-0.7):")
+high_corr = []
+for i in range(len(correlation_matrix.columns)):
+    for j in range(i+1, len(correlation_matrix.columns)):
+        if abs(correlation_matrix.iloc[i, j]) > 0.7:
+            high_corr.append({
+                'Feature 1': correlation_matrix.columns[i],
+                'Feature 2': correlation_matrix.columns[j],
+                'Correlation': correlation_matrix.iloc[i, j]
+            })
+
+if high_corr:
+    for item in high_corr:
+        print(f"  {item['Feature 1']} <-> {item['Feature 2']}: {item['Correlation']:.3f}")
+else:
+    print("  No high correlations found")
+
+# ============================================================================
+# 1.11: Save Initial Analysis Summary
+# ============================================================================
+print("\n" + "="*70)
+print("SUMMARY")
+print("="*70)
+
+summary = {
+    'Total Rows': len(df),
+    'Total Columns': len(df.columns),
+    'Numerical Features': len(df.select_dtypes(include=[np.number]).columns),
+    'Categorical Features': len(df.select_dtypes(exclude=[np.number]).columns),
+    'Missing Values': df.isnull().sum().sum(),
+    'Duplicate Rows': df.duplicated().sum()
+}
+
+print("\nDataset Summary:")
+for key, value in summary.items():
+    print(f"  {key}: {value:,}")
+
+# Save the processed dataframe for next steps
+print("\nSaving dataframe for next steps...")
+df.to_pickle('df_after_eda.pkl')
+print("✓ Saved as 'df_after_eda.pkl'")
+
+print("\n" + "="*70)
+print("STEP 1 COMPLETE!")
+print("Next: Run Step 2 - Feature Engineering and Preprocessing")
+print("="*70)
+
